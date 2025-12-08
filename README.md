@@ -1,96 +1,59 @@
-# Z-Image MPS
+# Z-Image MPS (Local AI Image Generator)
 
-Generate images locally with **Tongyi-MAI/Z-Image-Turbo** using a tiny CLI that works on Apple Silicon (MPS), CUDA, or CPU. The project mirrors the `qwen-image-mps` workflow but uses the new Z-Image Diffusers pipeline.
+네이버 블로그 자동화를 위한 로컬 AI 이미지 생성기입니다.  
+Apple Silicon (M1/M2/M3)의 MPS 가속을 사용하여 빠르고 효율적으로 이미지를 생성합니다.
 
-## Highlights
-- Auto device pick: prefers MPS (bfloat16), then CUDA (bfloat16), else CPU (float32)
-- Sensible defaults for Z-Image-Turbo (9 steps, CFG 0.0)
-- Aspect presets (multiples of 16) plus manual height/width overrides
-- Optional `torch.compile`, FlashAttention 2/3 switches, and CPU offload (CUDA)
-- `uv`-first: run without installing, or install/edit via `uv pip install -e .`
+## 🚀 주요 기능
 
-## Quick start
+- **로컬 구동**: 외부 API 비용 0원, 무제한 생성
+- **고속 생성**: MPS 가속 + Turbo 모델 사용 (장당 1~2분)
+- **API 서버**: 블로그 자동화 프로그램과 연동 가능한 HTTP API 제공
+- **인터랙티브 CLI**: 터미널에서 대화형으로 이미지 생성
 
-1) Install Python 3.10+ and ensure you have PyTorch with the right backend (MPS or CUDA).
+## 🛠️ 설치 및 실행
 
-2) Diffusers needs Z-Image support. The dependency is already pointed at the latest diffusers `main` in `pyproject.toml` so `uv` will fetch it automatically (no extra flag needed).
-
-3) Run with `uv` (no global install):
+### 1. 설치
 ```bash
-uv run z-image-mps.py --help
-uv run z-image-mps.py -p "A cozy neon-lit alley, cinematic, raining softly" --aspect 16:9
+# uv가 설치되어 있어야 합니다
+uv sync
 ```
 
-Or install locally in editable mode:
+### 2. API 서버 실행 (추천)
+블로그 자동화 프로그램과 연동하려면 서버를 실행하세요.
 ```bash
-uv pip install -e .
-z-image-mps --prompt "Sunlit living room, mid-century modern, natural light"
+uv run z-image-server
 ```
+- 주소: `http://localhost:8000`
+- 모델이 메모리에 상주하여 즉시 생성 가능
 
-Images are saved to `output/` by default with timestamped filenames.
-
-## Gradio demo
-
-Launch a simple UI (generate-only, no LoRA/edit):
+### 3. 인터랙티브 CLI 실행
+직접 프롬프트를 입력하여 테스트하려면 CLI를 사용하세요.
 ```bash
-uv run z-image-mps-gradio --host 0.0.0.0 --port 7860
-# or
-uv run python -m z_image_mps.gradio_app
+uv run z-image-interactive
 ```
 
-The UI exposes prompt, negative prompt, steps, guidance (defaults to 0.0), aspect/custom size, seed, device selection, attention backend (SDPA/Flash2/Flash3), optional `torch.compile`, and CUDA CPU-offload.
+## 📝 블로그 연동 가이드
 
-## CLI reference
+`blog_client.py`를 참고하여 블로그 자동화 프로그램에 통합하세요.
 
-```
-z-image-mps --prompt "..." [options]
+```python
+import requests
 
--p, --prompt            Text prompt (default: Hanfu prompt from the Z-Image README)
---negative-prompt       Negative prompt text
--s, --steps             Inference steps (default: 9)
---guidance-scale        CFG scale (Turbo expects 0.0)
---aspect {1:1,16:9,9:16,4:3,3:4}  (optional; uses height/width when omitted)
---height/--width        Exact dimensions (default 1024x1024 when no aspect is set)
---seed                  Seed (incremented per image when generating multiples)
---num-images            Number of images to generate
--o, --output            Output file (otherwise saved to output/)
---outdir                Output directory
---device {auto,mps,cuda,cpu}
---attention-backend     sdpa | flash2 | flash3
---compile               Try torch.compile() on the DiT transformer
---cpu-offload           Enable CPU offload (CUDA only)
+response = requests.post("http://localhost:8000/generate", json={
+    "prompt": "맛있는 삼겹살 사진",
+    "width": 896,
+    "height": 512,
+    "steps": 5
+})
+print(response.json()["image_path"])
 ```
 
-Notes:
-- Guidance should stay at `0.0` for the Turbo checkpoint.
-- FlashAttention requires compatible hardware/drivers; the CLI falls back to SDPA if it fails.
-- `torch.compile` speeds up repeated runs but makes the first call slower.
-- `-o/--output` can point to a file or a directory (including `~/...`); directories are created automatically.
-- The loader prefers `torch_dtype`/`dtype` based on your diffusers version to avoid deprecation warnings.
+## 📊 최적 설정 (워크벤치 결과)
 
-## Examples
+| 용도 | 크기 | Steps | 100장 소요시간 |
+|------|------|-------|----------------|
+| **블로그 표준 (추천)** | **896 x 512** | **5** | **약 2시간 47분** |
+| 속도 우선 | 768 x 432 | 5 | 약 1시간 30분 |
+| 고화질 (HD) | 1280 x 720 | 5 | 약 4시간 30분 |
 
-```bash
-# Square default
-z-image-mps -p "Analog film portrait of a skateboarder, shallow depth of field"
-
-# Widescreen
-z-image-mps -p "Cyberpunk night market, neon haze" --aspect 16:9
-
-# Multiple images with a fixed seed (increments per image)
-z-image-mps -p "Nordic fjord at dawn, misty" --num-images 3 --seed 123
-
-# FlashAttention 2 and compiled transformer (CUDA)
-z-image-mps -p "A futuristic tram in the rain" --attention-backend flash2 --compile
-```
-
-## Demo output
-
-| Prompt | Image |
-|--------|-------|
-| A magical forest with magical tress and magical mushrooms | ![Magical Forest](magicalforest.png) |
-| Default prompt (Hanfu) | ![Sample](sample.png) |
-
-## Why "MPS"?
-
-The original `qwen-image-mps` project focused on making Apple Silicon a first-class citizen. This repo keeps the same spirit: MPS when available, CUDA when present, CPU as a fallback. Everything is packaged to work smoothly with `uv` so you can try Z-Image quickly on a MacBook or GPU box.
+자세한 내용은 `FINAL_WORKBENCH.md`를 참고하세요.

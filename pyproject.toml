@@ -9,15 +9,20 @@ authors = [{ name = "Ivan Fioravanti" }]
 dependencies = [
     "accelerate>=0.33.0",
     "diffusers @ git+https://github.com/huggingface/diffusers",
+    "fastapi>=0.122.0",
     "gradio>=4.44.0",
+    "PySide6>=6.0.0",
+    "requests>=2.32.5",
     "safetensors>=0.4.0",
     "torch>=2.3.0",
     "transformers>=4.44.0",
+    "uvicorn>=0.38.0",
 ]
 
 [project.scripts]
 z-image-mps = "z_image_mps.cli:main"
 z-image-mps-gradio = "z_image_mps.gradio_app:main"
+z-image-interactive = "z_image_mps.interactive:main"
 
 [build-system]
 requires = ["hatchling"]
